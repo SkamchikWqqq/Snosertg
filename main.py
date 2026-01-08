@@ -144,7 +144,7 @@ async def handle_ddos_steps(msg: types.Message):
 @dp.callback_query(F.data == "dev")
 async def dev(call):
     await call.answer()
-    await call.message.answer("👤 Разработчик: @uselli")
+    await call.message.answer("👤 Разработчик: @cunpar")
 
 @dp.callback_query(F.data == "buy")
 async def buy(call):
@@ -174,3 +174,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
