@@ -16,8 +16,8 @@ CHANNEL_LINK = "https://t.me/+00hGhOja5G05MjBk"
 CHANNEL_ID = -1002415070098
 
 # Канал 2
-CHANNEL_2_LINK = "https://t.me/+xXqOd-Bso4U5Mjcy"
-CHANNEL_2_ID = -1002152232032
+CHANNEL_2_LINK = "https://t.me/+UV1hz_mo2iJjZDFi"
+CHANNEL_2_ID = -1002904646756
 
 ADMIN_USERNAME = "cunpar"
 
@@ -190,3 +190,4 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
     
+
