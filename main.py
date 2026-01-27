@@ -244,4 +244,4 @@ async def ddos_comment(msg: types.Message, state: FSMContext):
 # ---------- ИНФО ----------
 @dp.callback_query(F.data == "dev")
 async def dev(call):
-    await call.message.answer("👤 Раз
+    await call.message.answer("👤 Разработчик: @cunpar")
