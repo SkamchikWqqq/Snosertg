@@ -28,6 +28,7 @@ post_wait = set()
 promo_wait = set()
 
 # ---------- БАЗА ----------
+
 db = sqlite3.connect("bot.db")
 sql = db.cursor()
 
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS activated_promos (
 db.commit()
 
 # ---------- Проверка подписки ----------
+
 async def check_sub(user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(CHANNEL_ID, user_id)
@@ -62,10 +64,10 @@ async def check_sub(user_id: int) -> bool:
             return True
         return False
     except:
-        # если бот не админ — считаем подписку ОК
         return True
 
 # ---------- Проверка промо ----------
+
 def has_promo(user_id: int) -> bool:
     return sql.execute(
         "SELECT 1 FROM activated_promos WHERE user_id = ?",
@@ -73,6 +75,7 @@ def has_promo(user_id: int) -> bool:
     ).fetchone() is not None
 
 # ---------- Панель ----------
+
 def panel_kb(is_admin=False):
     kb = [
         [InlineKeyboardButton(text="🚨 ОТПРАВКА ЖАЛОБ", callback_data="ddos")],
@@ -89,8 +92,8 @@ def panel_kb(is_admin=False):
 
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
-
 # ---------- Webhook handler ----------
+
 async def on_start(request):
     # Получаем данные запроса от Telegram
     payload = await request.json()
@@ -99,31 +102,34 @@ async def on_start(request):
     return web.Response()
 
 # ---------- Веб-сервер ----------
+
 async def on_shutdown(app):
     await bot.close()
 
 def setup_webhook():
-    # Получаем динамический порт
-    port = int(os.environ.get("PORT", 5000))  # Для сервисов, как Heroku, порт будет автоматически назначен
+    # Получаем динамический порт от Render
+    port = int(os.environ.get("PORT", 5000))  # Для сервисов, как Render, порт будет автоматически назначен
     app = web.Application()
     app.router.add_post(f'/{BOT_TOKEN}', on_start)  # Роут для получения вебхуков от Telegram
     app.on_shutdown.append(on_shutdown)
 
-    # SSL сертификаты
+    # SSL сертификаты (если нужно)
     ssl_context = None
     if os.path.exists('cert.pem') and os.path.exists('key.pem'):
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ssl_context.load_cert_chain(certfile='cert.pem', keyfile='key.pem')
-    
-    # Запуск HTTPS сервера
-    web.run_app(app, host='0.0.0.0', port=port, ssl_context=ssl_context)
+
+    # Запуск HTTPS сервера на Render
+    return app, port
 
 # ---------- Запуск бота через вебхуки ----------
+
 async def on_startup(dispatcher: Dispatcher):
-    webhook_url = f"https://yourdomain.com/{BOT_TOKEN}"  # Замените на свой домен, например, от Render
+    webhook_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/{BOT_TOKEN}"  # Используем внешний хост Render
     await bot.set_webhook(webhook_url)
 
 # ---------- СОЗДАТЬ ПРОМО ----------
+
 @dp.callback_query(F.data == "promo_create")
 async def promo_create(call: types.CallbackQuery):
     if call.from_user.username not in ADMIN_USERNAMES:
@@ -136,12 +142,14 @@ async def promo_create(call: types.CallbackQuery):
     await call.message.answer(f"🎟 Промокод создан:\n`{code}`", parse_mode="Markdown")
 
 # ---------- АКТИВАЦИЯ ПРОМО ----------
+
 @dp.callback_query(F.data == "promo")
 async def promo_btn(call: types.CallbackQuery):
     promo_wait.add(call.from_user.id)
     await call.message.answer("🎟 Введите промокод:")
 
 # ---------- POST ----------
+
 @dp.callback_query(F.data == "post_btn")
 async def post_btn(call: types.CallbackQuery):
     if call.from_user.username not in ADMIN_USERNAMES:
@@ -152,6 +160,7 @@ async def post_btn(call: types.CallbackQuery):
     await call.message.answer("✏️ Введите текст для рассылки:")
 
 # ---------- БАЗА ----------
+
 @dp.callback_query(F.data == "users_db")
 async def users_db(call: types.CallbackQuery):
     if call.from_user.username not in ADMIN_USERNAMES:
@@ -166,6 +175,7 @@ async def users_db(call: types.CallbackQuery):
     await call.message.answer(text)
 
 # ---------- ТЕКСТ ----------
+
 @dp.message()
 async def handle_text(msg: types.Message):
     if msg.from_user.id in post_wait:
@@ -198,6 +208,7 @@ async def handle_text(msg: types.Message):
         await msg.answer("✅ Промокод активирован")
 
 # ---------- FSM СНОС ----------
+
 class DdosForm(StatesGroup):
     username = State()
     reason = State()
@@ -241,7 +252,4 @@ async def ddos_comment(msg: types.Message, state: FSMContext):
     )
     await state.clear()
 
-# ---------- ИНФО ----------
-@dp.callback_query(F.data == "dev")
-async def dev(call):
-    await call.message.answer("👤 Разработчик: @cunpar")
+#
