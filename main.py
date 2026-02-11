@@ -1,168 +1,459 @@
 import asyncio
+
+import aiosqlite
+
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 
-BOT_TOKEN = "8371434041:AAGnvrCL4Bb0JfcBxE0Fb4cnYD4Y3qAT0Jc"
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 
-# Канал 1
-CHANNEL_LINK = "https://t.me/+00hGhOja5G05MjBk"
-CHANNEL_ID = -1002415070098
+from aiogram.filters import CommandStart
 
-# Канал 2
-CHANNEL_2_LINK = "https://t.me/+UV1hz_mo2iJjZDFi"
-CHANNEL_2_ID = -1002904646756
+from aiogram.fsm.state import State, StatesGroup
 
-ADMIN_USERNAME = "cunpar"
+from aiogram.fsm.context import FSMContext
 
-bot = Bot(BOT_TOKEN)
+
+
+TOKEN = "8570193529:AAHaW5jhTlqtyYpp41JyLb75qT0TaDfJ_4Q"
+
+
+
+bot = Bot(token=TOKEN)
+
 dp = Dispatcher()
 
-user_chats = set()
-post_wait = set()
 
-# ---------- Проверка подписки ----------
-async def check_sub(user_id: int) -> bool:
-    try:
-        # РЕАЛЬНАЯ проверка ТОЛЬКО первого канала
-        member = await bot.get_chat_member(CHANNEL_ID, user_id)
 
-        if member.status in ["creator", "administrator", "member", "restricted"]:
-            return True
+# --- Админы ---
 
-        return False
-
-    except:
-        return False
+ADMINS = ["cunpar"]
 
 
 
-# ---------- Панель ----------
-def panel_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚨 ОТПРАВКА ЖАЛОБ", callback_data="ddos")],
-        [InlineKeyboardButton(text="📨 POST", callback_data="post_btn")],
-        [InlineKeyboardButton(text="👤 О разработчике", callback_data="dev")],
-        [InlineKeyboardButton(text="💎 Купить админку", callback_data="buy")]
-    ])
+# --- Каналы для проверки ---
+
+CHANNEL_LINKS = [
+
+    "https://t.me/+cH6hfRE443g5N2I0",
+
+    "https://t.me/+yO5vZ2dUyRE3MzM0"
+
+]
 
 
-# ---------- /start ----------
-@dp.message(Command("start"))
-async def start(msg: types.Message):
-    if not await check_sub(msg.from_user.id):
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Канал 1", url=CHANNEL_LINK)],
-            [InlineKeyboardButton(text="📢 Канал 2", url=CHANNEL_2_LINK)],
-            [InlineKeyboardButton(text="✅ Проверить", callback_data="check")]
-        ])
-        await msg.answer_photo(
-            FSInputFile("start.jpg"),
-            caption="❗ Подпишись на ОБА канала",
-            reply_markup=kb
+
+CHANNEL_IDS = [
+
+    -1002647209017,  # сюда вставь ID первого канала
+
+    -1002415070098   # сюда вставь ID второго канала
+
+]
+
+
+
+# --- Кнопка подписки ---
+
+sub_kb = InlineKeyboardMarkup(
+
+    inline_keyboard=[
+
+        [InlineKeyboardButton(text="📢 Подписаться на канал 1", url=CHANNEL_LINKS[0])],
+
+        [InlineKeyboardButton(text="📢 Подписаться на канал 2", url=CHANNEL_LINKS[1])],
+
+        [InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_sub")]
+
+    ]
+
+)
+
+
+
+# --- Проверка подписки ---
+
+async def is_subscribed(user_id):
+
+
+
+    for channel in CHANNEL_IDS:
+
+        try:
+
+            member = await bot.get_chat_member(channel, user_id)
+
+
+
+            if member.status in ["left", "kicked"]:
+
+                return False
+
+
+
+        except:
+
+            return False
+
+
+
+    return True
+
+
+
+# --- База ---
+
+async def init_db():
+
+    async with aiosqlite.connect("users.db") as db:
+
+        await db.execute(
+
+            "CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)"
+
         )
-        return
 
-    user_chats.add(msg.chat.id)
-    await msg.answer_photo(
-        FSInputFile("start.jpg"),
-        caption="Добро пожаловать.",
-        reply_markup=panel_kb()
+        await db.commit()
+
+
+
+async def add_user(user_id):
+
+    async with aiosqlite.connect("users.db") as db:
+
+        await db.execute(
+
+            "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,)
+
+        )
+
+        await db.commit()
+
+
+
+async def get_users():
+
+    async with aiosqlite.connect("users.db") as db:
+
+        async with db.execute("SELECT user_id FROM users") as cursor:
+
+            return [row[0] async for row in cursor]
+
+
+
+# --- Клавиатуры ---
+
+def get_keyboard(username):
+
+    buttons = [
+
+        [KeyboardButton(text="📩 Отправка жалоб")],
+
+        [KeyboardButton(text="ℹ️ О боте")]
+
+    ]
+
+
+
+    if username and username.lower() in [a.lower() for a in ADMINS]:
+
+        buttons.insert(1, [KeyboardButton(text="📢 Рассылка")])
+
+
+
+    return ReplyKeyboardMarkup(
+
+        keyboard=buttons,
+
+        resize_keyboard=True
+
     )
 
 
-# ---------- Проверка ----------
-@dp.callback_query(F.data == "check")
-async def recheck(call: types.CallbackQuery):
-    await call.answer("🔍 Проверяем...")
-    if not await check_sub(call.from_user.id):
-        await call.message.answer("❗ Подписка не найдена.")
+
+# --- FSM ---
+
+class ReportState(StatesGroup):
+
+    target = State()
+
+    reason = State()
+
+    mode = State()
+
+
+
+class BroadcastState(StatesGroup):
+
+    text = State()
+
+
+
+# --- Старт ---
+
+@dp.message(CommandStart())
+
+async def start(message: types.Message):
+
+
+
+    await add_user(message.from_user.id)
+
+
+
+    # ПРОВЕРКА ПОДПИСКИ
+
+    if not await is_subscribed(message.from_user.id):
+
+
+
+        await message.answer(
+
+            "🚫 Для использования бота подпишись на каналы:",
+
+            reply_markup=sub_kb
+
+        )
+
         return
 
-    user_chats.add(call.message.chat.id)
-    await call.message.answer("Добро пожаловать.", reply_markup=panel_kb())
 
 
-# ---------- POST кнопка ----------
-@dp.callback_query(F.data == "post_btn")
-async def post_btn(call: types.CallbackQuery):
-    if call.from_user.username != ADMIN_USERNAME:
-        await call.answer("❌ Нет доступа", show_alert=True)
+    photo = FSInputFile("start.jpg")
+
+
+
+    await message.answer_photo(
+
+        photo=photo,
+
+        caption=(
+
+            "👋 Добро пожаловать в CН0СЕR!\n\n"
+
+            "🔥 Самый мощный инструмент\n"
+
+            "⚡ Быстро\n"
+
+            "🛡 Надёжно\n\n"
+
+            "👇 Выбери кнопку:"
+
+        ),
+
+        reply_markup=get_keyboard(message.from_user.username)
+
+    )
+
+
+
+# --- Проверка кнопки ---
+
+@dp.callback_query(F.data == "check_sub")
+
+async def check_sub(callback: types.CallbackQuery):
+
+
+
+    if await is_subscribed(callback.from_user.id):
+
+
+
+        photo = FSInputFile("start.jpg")
+
+
+
+        await callback.message.delete()
+
+
+
+        await callback.message.answer_photo(
+
+            photo=photo,
+
+            caption="✅ Подписка подтверждена!",
+
+            reply_markup=get_keyboard(callback.from_user.username)
+
+        )
+
+
+
+    else:
+
+        await callback.answer("❌ Подпишись на все каналы", show_alert=True)
+
+
+
+# --- О боте ---
+
+@dp.message(F.text == "ℹ️ О боте")
+
+async def about(message: types.Message):
+
+    await message.answer(
+
+        "ℹ️ О боте\n\n"
+
+        "👑 Owner: @Cunpar\n"
+
+        "⚡ Version: 1.0\n"
+
+        "🤖 TOP os1nt bot"
+
+    )
+
+
+
+# --- Рассылка только админам ---
+
+@dp.message(F.text == "📢 Рассылка")
+
+async def broadcast_start(message: types.Message, state: FSMContext):
+
+
+
+    if message.from_user.username not in ADMINS:
+
         return
 
-    post_wait.add(call.from_user.id)
-    await call.message.answer("✏️ Введите текст для рассылки:")
 
 
-# ---------- POST текст ----------
-@dp.message()
-async def post_text(msg: types.Message):
-    if msg.from_user.id in post_wait:
-        post_wait.remove(msg.from_user.id)
-        text = msg.text
+    await message.answer("📢 Введи текст рассылки:")
 
-        for chat in user_chats:
-            try:
-                await bot.send_message(chat, text)
-            except:
-                pass
+    await state.set_state(BroadcastState.text)
+
+
+
+
+
+@dp.message(BroadcastState.text)
+
+async def broadcast_send(message: types.Message, state: FSMContext):
+
+
+
+    users = await get_users()
+
+    count = 0
+
+
+
+    for user in users:
 
         try:
-            await bot.send_message(CHANNEL_2_ID, text)
+
+            await bot.send_message(
+
+                user,
+
+                f"📢 Рассылка\n\n{message.text}"
+
+            )
+
+            count += 1
+
         except:
+
             pass
 
-        await msg.answer("✅ Рассылка завершена")
-        return
 
 
-# ---------- Снос ----------
-user_ddos_data = {}
+    await message.answer(f"✅ Отправлено {count} пользователям")
 
-@dp.callback_query(F.data == "ddos")
-async def ddos(call):
-    await call.answer()
-    user_ddos_data[call.from_user.id] = {"step": "user"}
-    await call.message.answer("🛠 Введите @username:")
+    await state.clear()
 
 
-@dp.message()
-async def ddos_steps(msg: types.Message):
-    uid = msg.from_user.id
-    if uid not in user_ddos_data:
-        return
 
-    data = user_ddos_data[uid]
-    if data["step"] == "user":
-        data["user"] = msg.text
-        data["step"] = "reason"
-        await msg.answer("📝 Введите причину:")
-        return
+# --- Жалобы ---
 
-    msg_sim = await msg.answer("▶ Отправка...")
-    for s in ["20%", "50%", "80%", "✅ Готово"]:
-        await asyncio.sleep(1)
-        await msg_sim.edit_text(s)
+@dp.message(F.text == "📩 Отправка жалоб")
 
-    user_ddos_data.pop(uid)
+async def report_start(message: types.Message, state: FSMContext):
+
+    await message.answer("👤 Введи username цели:")
+
+    await state.set_state(ReportState.target)
 
 
-# ---------- Кнопки ----------
-@dp.callback_query(F.data == "dev")
-async def dev(call):
-    await call.answer()
-    await call.message.answer("👤 Разработчик: @usellio")
 
-@dp.callback_query(F.data == "buy")
-async def buy(call):
-    await call.answer()
-    await call.message.answer("💎 Купить админку: @cunpar")
+@dp.message(ReportState.target)
+
+async def report_reason(message: types.Message, state: FSMContext):
+
+    await state.update_data(target=message.text)
+
+    await message.answer("📄 Введи причину:")
+
+    await state.set_state(ReportState.reason)
 
 
-# ---------- Запуск ----------
+
+@dp.message(ReportState.reason)
+
+async def report_mode(message: types.Message, state: FSMContext):
+
+    await state.update_data(reason=message.text)
+
+    await message.answer("⚙️ Введи режим:")
+
+    await state.set_state(ReportState.mode)
+
+
+
+@dp.message(ReportState.mode)
+
+async def report_done(message: types.Message, state: FSMContext):
+
+
+
+    data = await state.update_data(mode=message.text)
+
+    data = await state.get_data()
+
+
+
+    msg = await message.answer("⏳ Отправка жалоб...")
+
+
+
+    await asyncio.sleep(1)
+
+    await msg.edit_text("📡 Подключение...")
+
+    await asyncio.sleep(1)
+
+    await msg.edit_text("📨 Отправка...")
+
+    await asyncio.sleep(1)
+
+    await msg.edit_text(
+
+        f"✅ Готово\n\n"
+
+        f"👤 Цель: {data['target']}\n"
+
+        f"📄 Причина: {data['reason']}\n"
+
+        f"⚙️ Режим: {data['mode']}\n\n"
+
+        f"📊 Отправлено: 167 жалоб"
+
+    )
+
+
+
+    await state.clear()
+
+
+
+# --- Запуск ---
+
 async def main():
-    await bot.delete_webhook(drop_pending_updates=True)
+
+    await init_db()
+
     await dp.start_polling(bot)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+
+
+asyncio.run(main())
