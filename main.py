@@ -1,3 +1,18 @@
+import os
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "✅ Я онлайн!"
+
+def run():
+    port = int(os.environ.get("PORT", 8080))  # Получаем порт из переменной окружения
+    app.run(host='0.0.0.0', port=port)  # Запускаем Flask на этом порту
+
+Thread(target=run).start()
 import asyncio
 
 import aiosqlite
@@ -457,3 +472,4 @@ async def main():
 
 
 asyncio.run(main())
+
