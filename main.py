@@ -29,7 +29,7 @@ from aiogram.fsm.context import FSMContext
 
 
 
-TOKEN = "8570193529:AAHaW5jhTlqtyYpp41JyLb75qT0TaDfJ_4Q"
+TOKEN = "8787728737:AAEtcUxHgTaVELYHM_i_Ji4EbY9oyNdyiWk"
 
 
 
@@ -472,5 +472,6 @@ async def main():
 
 
 asyncio.run(main())
+
 
 
