@@ -49,7 +49,7 @@ ADMINS = ["cunpar"]
 
 CHANNEL_LINKS = [
 
-    "https://t.me/+cH6hfRE443g5N2I0",
+    "https://t.me/+1sy_SP95ByxiNDFl",
 
     "https://t.me/+yO5vZ2dUyRE3MzM0"
 
@@ -59,7 +59,7 @@ CHANNEL_LINKS = [
 
 CHANNEL_IDS = [
 
-    -1002647209017,  # сюда вставь ID первого канала
+    -1002952890093,  # сюда вставь ID первого канала
 
     -1002415070098   # сюда вставь ID второго канала
 
@@ -161,7 +161,7 @@ def get_keyboard(username):
 
     buttons = [
 
-        [KeyboardButton(text="📩 Отправка жалоб")],
+        [KeyboardButton(text="📩 запуск")],
 
         [KeyboardButton(text="ℹ️ О боте")]
 
@@ -243,7 +243,7 @@ async def start(message: types.Message):
 
         caption=(
 
-            "👋 Добро пожаловать в CН0СЕR!\n\n"
+            "👋 Добро пожаловать в тоставщика!\n\n"
 
             "🔥 Самый мощный инструмент\n"
 
@@ -313,7 +313,7 @@ async def about(message: types.Message):
 
         "⚡ Version: 1.0\n"
 
-        "🤖 TOP os1nt bot"
+        "🤖 TOP сн bot"
 
     )
 
@@ -472,4 +472,5 @@ async def main():
 
 
 asyncio.run(main())
+
 
